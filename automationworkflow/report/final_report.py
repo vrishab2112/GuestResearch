@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import Dict, List, Tuple
+from typing import Dict, List, Tuple, Optional
 
 
 def _read_json(path: Path) -> Dict:
@@ -104,7 +104,7 @@ def _format_north_star(north_star_obj: Dict) -> str:
     return "\n".join(lines)
 
 
-def _format_plan(plan_obj: Dict) -> str:
+def _format_plan(plan_obj: Dict, comment_analysis: Optional[Dict] = None) -> str:
     lines: List[str] = []
     outline = plan_obj.get("outline", [])
     if outline:
@@ -137,6 +137,14 @@ def _format_plan(plan_obj: Dict) -> str:
             lines.append(f"- {i}. {text}")
             for c in q.get("citations", [])[:3]:
                 lines.append(f"  - {c}")
+        # Subsection: Questions the audience still wants to know (from comments)
+        if comment_analysis:
+            open_q = comment_analysis.get("open_questions") or []
+            if open_q:
+                lines.append("")
+                lines.append("#### Questions the audience still wants to know")
+                for q in open_q[:10]:
+                    lines.append(f"- {q}")
         lines.append("")
 
     # Audience psychology
@@ -152,6 +160,89 @@ def _format_plan(plan_obj: Dict) -> str:
             lines.append(f"- {theme}: {why}")
             for c in t.get("citations", [])[:3]:
                 lines.append(f"  - {c}")
+        # Inline comment analysis under audience psychology
+        if comment_analysis:
+            overall = comment_analysis.get("overall_sentiment") or {}
+            topics = comment_analysis.get("hot_topics") or []
+            controversies = comment_analysis.get("controversies") or []
+            open_q = comment_analysis.get("open_questions") or []
+            top = comment_analysis.get("top_comments") or []
+            stats = comment_analysis.get("stats") or {}
+
+            lines.append("")
+            lines.append("#### Comment analysis")
+            if overall:
+                summary = overall.get("summary") or ""
+                pos = overall.get("positive_pct")
+                neu = overall.get("neutral_pct")
+                neg = overall.get("negative_pct")
+                parts: List[str] = []
+                if pos is not None:
+                    parts.append(f"positive: {pos}%")
+                if neu is not None:
+                    parts.append(f"neutral: {neu}%")
+                if neg is not None:
+                    parts.append(f"negative: {neg}%")
+                if summary:
+                    if parts:
+                        lines.append(f"{summary} (" + ", ".join(parts) + ")")
+                    else:
+                        lines.append(summary)
+            if topics:
+                lines.append("- Hot topics:")
+                for t in topics[:4]:
+                    why = t.get("why") or ""
+                    lines.append(f"  - {t.get('topic')}: {why}")
+            if controversies:
+                lines.append("- Controversies:")
+                for c in controversies[:3]:
+                    lines.append(f"  - {c.get('issue')}: {c.get('sides')}")
+            if open_q:
+                lines.append("- Open questions (from viewers):")
+                for q in open_q[:5]:
+                    lines.append(f"  - {q}")
+            if top:
+                lines.append("- Top comments:")
+                for c in top[:3]:
+                    likes = c.get("likes")
+                    quote = c.get("quote")
+                    lines.append(f"  - {likes} likes – {quote}")
+            if stats:
+                lines.append(f"_Analyzed {stats.get('sample_size')} of {stats.get('total_comments')} comments._")
+            lines.append("")
+        else:
+            lines.append("")
+
+    # Tensions & Struggles (before Insights)
+    ts = plan_obj.get("tensions_struggles") or {}
+    top_ch = ts.get("top_challenges") or []
+    biggest_fear = ts.get("biggest_fear") or {}
+    if top_ch or biggest_fear:
+        lines.append("### Tensions & struggles")
+        for c in top_ch[:2]:
+            lines.append(f"- Challenge: {c.get('challenge')}")
+            if c.get("why"):
+                lines.append(f"  - Why: {c.get('why')}")
+        if biggest_fear.get("fear"):
+            lines.append(f"- Biggest fear: {biggest_fear.get('fear')}")
+            if biggest_fear.get("why"):
+                lines.append(f"  - Why: {biggest_fear.get('why')}")
+        lines.append("")
+
+    # Controversy, Vulnerability & Taboo
+    cvt = plan_obj.get("controversy_vulnerability_taboo") or {}
+    debates = cvt.get("controversial_debates") or []
+    shame_q = cvt.get("shameful_questions") or []
+    if debates or shame_q:
+        lines.append("### Controversy, vulnerability & taboo")
+        for d in debates[:2]:
+            lines.append(f"- Debate: {d.get('debate')}")
+            if d.get("sides"):
+                lines.append(f"  - Sides: {d.get('sides')}")
+        if shame_q:
+            lines.append("- Uncomfortable questions:")
+            for q in shame_q[:2]:
+                lines.append(f"  - {q}")
         lines.append("")
 
     # Insights & data focused on North Star
@@ -173,6 +264,72 @@ def _format_plan(plan_obj: Dict) -> str:
     return "\n".join(lines)
 
 
+def _format_comment_analysis(analysis: Dict) -> str:
+    lines: List[str] = []
+    if not analysis:
+        return ""
+    overall = analysis.get("overall_sentiment") or {}
+    if overall:
+        lines.append("### Overall sentiment")
+        summary = overall.get("summary") or ""
+        if summary:
+            lines.append(summary)
+        pos = overall.get("positive_pct")
+        neu = overall.get("neutral_pct")
+        neg = overall.get("negative_pct")
+        parts = []
+        if pos is not None:
+            parts.append(f"positive: {pos}%")
+        if neu is not None:
+            parts.append(f"neutral: {neu}%")
+        if neg is not None:
+            parts.append(f"negative: {neg}%")
+        if parts:
+            lines.append("(" + ", ".join(parts) + ")")
+        lines.append("")
+
+    topics = analysis.get("hot_topics") or []
+    if topics:
+        lines.append("### Hot topics")
+        for t in topics[:8]:
+            lines.append(f"- {t.get('topic')}: {t.get('why')}")
+            if t.get("example_quote"):
+                lines.append(f"  - \"{t.get('example_quote')}\"")
+        lines.append("")
+
+    controversies = analysis.get("controversies") or []
+    if controversies:
+        lines.append("### Controversies")
+        for c in controversies[:6]:
+            lines.append(f"- {c.get('issue')}: {c.get('sides')}")
+            if c.get("example_quote"):
+                lines.append(f"  - \"{c.get('example_quote')}\"")
+        lines.append("")
+
+    open_q = analysis.get("open_questions") or []
+    if open_q:
+        lines.append("### Open questions from viewers")
+        for q in open_q[:10]:
+            lines.append(f"- {q}")
+        lines.append("")
+
+    top = analysis.get("top_comments") or []
+    if top:
+        lines.append("### Top comments (by likes)")
+        for c in top[:8]:
+            likes = c.get("likes")
+            quote = c.get("quote")
+            lines.append(f"- {likes} likes – {quote}")
+        lines.append("")
+
+    stats = analysis.get("stats") or {}
+    if stats:
+        lines.append(f"_Analyzed {stats.get('sample_size')} of {stats.get('total_comments')} comments._")
+        lines.append("")
+
+    return "\n".join(lines)
+
+
 def build_markdown_report(guest: str, guest_dir: Path) -> str:
     about_text, link_sections, stats, about_sources = _summarize_agent1(guest_dir)
     # Prefer user-selected North Star if present
@@ -182,6 +339,8 @@ def build_markdown_report(guest: str, guest_dir: Path) -> str:
     plan_path = guest_dir / "agent3" / "plan.json"
     north_star_obj = _read_json(north_star_path)
     plan_obj = _read_json(plan_path)
+    comment_analysis = _read_json(guest_dir / "agent3" / "comment_analysis.json")
+    comment_analysis = _read_json(guest_dir / "agent3" / "comment_analysis.json")
 
     lines: List[str] = []
     lines.append(f"# Final Interview Research Report — {guest}")
@@ -257,7 +416,7 @@ def build_markdown_report(guest: str, guest_dir: Path) -> str:
 
     if plan_obj:
         lines.append("## Conversation plan")
-        lines.append(_format_plan(plan_obj))
+        lines.append(_format_plan(plan_obj, comment_analysis=comment_analysis))
     else:
         lines.append("## Conversation plan")
         lines.append("_Not available. Run Agent 3 to generate the plan._\n")
@@ -368,6 +527,14 @@ def generate_final_report_docx(guest: str, outputs_root: Path) -> Path:
                 doc.add_paragraph(f"{i}. {text}")
                 for c in q.get("citations", [])[:3]:
                     doc.add_paragraph(f"  - {c}")
+            # Subsection from comment analysis
+            comment_analysis = _read_json(guest_dir / "agent3" / "comment_analysis.json")
+            if comment_analysis:
+                open_q = comment_analysis.get("open_questions") or []
+                if open_q:
+                    doc.add_heading("Questions the audience still wants to know", level=3)
+                    for q in open_q[:10]:
+                        doc.add_paragraph(f"- {q}")
         # Audience psychology
         audience = plan_obj.get("audience_psychology")
         if audience:
@@ -396,6 +563,52 @@ def generate_final_report_docx(guest: str, outputs_root: Path) -> Path:
                     doc.add_paragraph(f"  - {c}")
     else:
         doc.add_paragraph("Not available. Run Agent 3 to generate the plan.")
+
+    # Comment analysis (if present)
+    comment_analysis = _read_json(guest_dir / "agent3" / "comment_analysis.json")
+    if comment_analysis:
+        doc.add_heading("Comment analysis", level=1)
+        overall = comment_analysis.get("overall_sentiment") or {}
+        if overall:
+            doc.add_heading("Overall sentiment", level=2)
+            if overall.get("summary"):
+                doc.add_paragraph(overall["summary"]) 
+            parts = []
+            if overall.get("positive_pct") is not None:
+                parts.append(f"positive: {overall.get('positive_pct')}%")
+            if overall.get("neutral_pct") is not None:
+                parts.append(f"neutral: {overall.get('neutral_pct')}%")
+            if overall.get("negative_pct") is not None:
+                parts.append(f"negative: {overall.get('negative_pct')}%")
+            if parts:
+                doc.add_paragraph("(" + ", ".join(parts) + ")")
+        topics = comment_analysis.get("hot_topics") or []
+        if topics:
+            doc.add_heading("Hot topics", level=2)
+            for t in topics[:8]:
+                doc.add_paragraph(f"- {t.get('topic')}: {t.get('why')}")
+                if t.get("example_quote"):
+                    doc.add_paragraph(f"  - \"{t.get('example_quote')}\"")
+        controversies = comment_analysis.get("controversies") or []
+        if controversies:
+            doc.add_heading("Controversies", level=2)
+            for c in controversies[:6]:
+                doc.add_paragraph(f"- {c.get('issue')}: {c.get('sides')}")
+                if c.get("example_quote"):
+                    doc.add_paragraph(f"  - \"{c.get('example_quote')}\"")
+        open_q = comment_analysis.get("open_questions") or []
+        if open_q:
+            doc.add_heading("Open questions from viewers", level=2)
+            for q in open_q[:10]:
+                doc.add_paragraph(f"- {q}")
+        top = comment_analysis.get("top_comments") or []
+        if top:
+            doc.add_heading("Top comments (by likes)", level=2)
+            for c in top[:8]:
+                doc.add_paragraph(f"- {c.get('likes')} likes – {c.get('quote')}")
+        stats = comment_analysis.get("stats") or {}
+        if stats:
+            doc.add_paragraph(f"Analyzed {stats.get('sample_size')} of {stats.get('total_comments')} comments.")
 
     out_path = guest_dir / "final_report.docx"
     # Ensure correct .docx write

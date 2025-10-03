@@ -9,7 +9,7 @@ from .prompts import SYSTEM, USER_TEMPLATE
 from prompts.loader import get_prompt
 
 
-def call_openai_json(messages: List[Dict], model: str = "gpt-4o-mini") -> Dict:
+def call_openai_json(messages: List[Dict], model: str = "gpt-4o") -> Dict:
     import requests
     api_key = os.getenv("OPENAI_API_KEY")
     if not api_key:
@@ -23,7 +23,7 @@ def call_openai_json(messages: List[Dict], model: str = "gpt-4o-mini") -> Dict:
     return json.loads(content)
 
 
-def generate_plan(guest: str, north_star_obj: Dict, snippets: List[Dict], out_dir: Path, model: str = "gpt-4o-mini") -> Dict:
+def generate_plan(guest: str, north_star_obj: Dict, snippets: List[Dict], out_dir: Path, model: str = "gpt-4o") -> Dict:
     north_star = json.dumps(north_star_obj.get("north_star", []), ensure_ascii=False)
     lesser = json.dumps(north_star_obj.get("lesser_known", []), ensure_ascii=False)
     compact_snips = json.dumps(snippets[:80], ensure_ascii=False)

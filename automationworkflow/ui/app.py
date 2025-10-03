@@ -36,12 +36,13 @@ with st.sidebar:
     run_button = st.button("Run Agent 1")
     st.markdown("---")
     st.subheader("Agent 2 – Insights")
-    model = st.text_input("OpenAI model", "gpt-4o-mini")
+    model = "gpt-4o"
     run_agent2 = st.button("Generate North Star + Lesser-known Topics")
     use_chroma = st.checkbox("Use Chroma retrieval (if indexed)", value=False)
     st.markdown("---")
     st.subheader("Agent 3 – Conversation Plan")
     run_agent3 = st.button("Generate 10 Topics + Outline + Questions")
+    analyze_comments_btn = st.button("Analyze YouTube Comments")
     st.markdown("---")
     st.subheader("Final Report")
     fmt = st.selectbox("Format", ["Markdown (.md)", "Word (.docx)"], index=0)
@@ -51,7 +52,6 @@ with st.sidebar:
     chat_enabled = st.checkbox("Enable Chroma retrieval for chat", value=True)
     web_fallback = st.checkbox("Allow web search fallback", value=True)
     web_max = st.number_input("Web max results (fallback)", min_value=0, max_value=25, value=5)
-    chat_model = st.text_input("Chat model", value=model)
     user_question = st.text_input("Ask a question about the guest")
     ask = st.button("Ask")
 
@@ -176,6 +176,22 @@ elif run_agent3:
         st.write(f"Saved to `{guest_dir / 'agent3' / 'plan.json'}`")
     except Exception as e:
         st.error(f"Agent 3 failed: {e}")
+elif analyze_comments_btn:
+    try:
+        from analysis.comments import analyze_comments
+        outputs_root = PROJECT_ROOT / "outputs"
+        guest_dir = outputs_root / guest
+        res = analyze_comments(guest_dir, model=model, max_comments=400)
+        st.success("Comment analysis generated.")
+        st.json({
+            "hot_topics": len(res.get("hot_topics", [])),
+            "controversies": len(res.get("controversies", [])),
+            "open_questions": len(res.get("open_questions", [])),
+            "sample_size": (res.get("stats") or {}).get("sample_size"),
+        })
+        st.write(f"Saved to `{guest_dir / 'agent3' / 'comment_analysis.json'}`")
+    except Exception as e:
+        st.error(f"Comment analysis failed: {e}")
 elif 'generate_report' in locals() and generate_report:
     try:
         if fmt.startswith("Markdown"):
@@ -212,7 +228,7 @@ elif 'ask' in locals() and ask and user_question.strip():
             guest,
             guest_dir,
             user_question.strip(),
-            model=chat_model,
+            model="gpt-4o",
             use_chroma=chat_enabled,
             allow_web_search=web_fallback,
             web_max_results=int(web_max),

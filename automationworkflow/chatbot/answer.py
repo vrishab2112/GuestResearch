@@ -97,7 +97,7 @@ def top_youtube_comments(youtube_records: List[Dict], limit: int = 5) -> Tuple[L
     return comments[:max(1, limit)], videos
 
 
-def call_openai(messages: List[Dict], model: str = "gpt-4o-mini") -> str:
+def call_openai(messages: List[Dict], model: str = "gpt-4o") -> str:
     import requests
     api_key = os.getenv("OPENAI_API_KEY")
     if not api_key:
@@ -115,7 +115,7 @@ def call_openai(messages: List[Dict], model: str = "gpt-4o-mini") -> str:
     return data["choices"][0]["message"]["content"]
 
 
-def answer_question(guest: str, guest_dir: Path, question: str, model: str = "gpt-4o-mini", use_chroma: bool = True, allow_web_search: bool = False, web_max_results: int = 5) -> Dict:
+def answer_question(guest: str, guest_dir: Path, question: str, model: str = "gpt-4o", use_chroma: bool = True, allow_web_search: bool = False, web_max_results: int = 5) -> Dict:
     corpus = load_corpus(guest_dir)
     db_dir = guest_dir / "chroma"
     retrieved = retrieve(db_dir if use_chroma else None, question, n_results=6)
