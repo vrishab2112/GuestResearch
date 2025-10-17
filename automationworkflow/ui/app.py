@@ -23,7 +23,9 @@ st.set_page_config(page_title="Guest Research – Agents 1–3", layout="wide")
 st.title("Agents 1–3 – Research Workflow")
 
 with st.sidebar:
-    guest = st.text_input("Guest name", "Elon Musk")
+    # Use session_state guest if set from Guests Manager
+    default_guest = st.session_state.get("selected_guest") or "Elon Musk"
+    guest = st.text_input("Guest name", default_guest)
     st.markdown("#### API keys (optional per user)")
     openai_key = st.text_input("OPENAI_API_KEY", type="password", help="Used by Agents 2 & 3")
     yt_key = st.text_input("YOUTUBE_API_KEY", type="password", help="Enables YouTube search/comments in Agent 1")
@@ -70,6 +72,10 @@ if not yt.comments_enabled:
 # Show completion status for Agents 1–3
 outputs_root = PROJECT_ROOT / "outputs"
 guest_dir = outputs_root / guest
+
+# Persist chosen guest to session state for cross-page consistency
+if guest and guest != st.session_state.get("selected_guest"):
+    st.session_state["selected_guest"] = guest
 agent1_done = (guest_dir / "chunks.jsonl").exists()
 agent2_done = (guest_dir / "agent2" / "north_star.json").exists()
 agent3_done = (guest_dir / "agent3" / "plan.json").exists()
