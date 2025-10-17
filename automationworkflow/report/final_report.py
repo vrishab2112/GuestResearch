@@ -892,6 +892,9 @@ def generate_final_report_docx(guest: str, outputs_root: Path) -> Path:
 
     try:
         from docx import Document
+        from docx.shared import Inches, Pt, RGBColor
+        from docx.oxml import OxmlElement
+        from docx.oxml.ns import qn
     except Exception:
         # Try Pandoc fallback; if that fails, return Markdown
         return _pandoc_fallback()
@@ -908,6 +911,82 @@ def generate_final_report_docx(guest: str, outputs_root: Path) -> Path:
     plan_obj = _read_json(guest_dir / "agent3" / "plan.json")
 
     doc = Document()
+
+    # ---- Document base styles ----
+    try:
+        # Margins ~0.75in for compactness
+        section = doc.sections[0]
+        section.left_margin = Inches(0.75)
+        section.right_margin = Inches(0.75)
+        section.top_margin = Inches(0.75)
+        section.bottom_margin = Inches(0.75)
+
+        # Normal style font/spacing
+        normal = doc.styles["Normal"]
+        normal.font.name = "Calibri"
+        normal.font.size = Pt(11)
+        pf = normal.paragraph_format
+        pf.space_after = Pt(6)
+        pf.line_spacing = 1.15
+    except Exception:
+        pass
+
+    # ---- Helpers ----
+    def add_bullet(text: str, indent_level: int = 0):
+        p = doc.add_paragraph(text, style="List Bullet")
+        if indent_level:
+            try:
+                p.paragraph_format.left_indent = Inches(0.25 * indent_level)
+            except Exception:
+                pass
+        return p
+
+    def add_numbered(text: str, indent_level: int = 0):
+        p = doc.add_paragraph(text, style="List Number")
+        if indent_level:
+            try:
+                p.paragraph_format.left_indent = Inches(0.25 * indent_level)
+            except Exception:
+                pass
+        return p
+
+    def add_hyperlink(paragraph, text: str, url: str):
+        try:
+            part = paragraph.part
+            r_id = part.relate_to(url, "http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink", is_external=True)
+            hyperlink = OxmlElement('w:hyperlink')
+            hyperlink.set(qn('r:id'), r_id)
+
+            new_run = OxmlElement('w:r')
+            rPr = OxmlElement('w:rPr')
+            u = OxmlElement('w:u')
+            u.set(qn('w:val'), 'single')
+            rPr.append(u)
+            color = OxmlElement('w:color')
+            color.set(qn('w:val'), '0563C1')
+            rPr.append(color)
+            new_run.append(rPr)
+            t = OxmlElement('w:t')
+            t.text = text
+            new_run.append(t)
+            hyperlink.append(new_run)
+            paragraph._p.append(hyperlink)
+        except Exception:
+            paragraph.add_run(f"{text} ({url})")
+
+    def parse_md_link(item: str):
+        # Accept forms like "- [Title](https://url)" or "[Title](https://url)"
+        s = item.strip()
+        if s.startswith("- "):
+            s = s[2:].strip()
+        if s.startswith("[") and "](" in s and s.endswith(")"):
+            try:
+                title = s[1:s.index("](")]
+                url = s[s.index("](") + 2:].strip("()")
+                return title, url
+            except Exception:
+                return item, None
+        return item, None
     doc.add_heading(f"Final Interview Research Report — {guest}", 0)
 
     if about_text:
@@ -957,11 +1036,21 @@ def generate_final_report_docx(guest: str, outputs_root: Path) -> Path:
         if link_sections.get("articles"):
             doc.add_heading("Articles", level=2)
             for l in link_sections["articles"]:
-                doc.add_paragraph(l)
+                p = doc.add_paragraph()
+                title, url = parse_md_link(l)
+                if url:
+                    add_hyperlink(p, title, url)
+                else:
+                    p.add_run(title)
         if link_sections.get("books"):
             doc.add_heading("Books & longform", level=2)
             for l in link_sections["books"]:
-                doc.add_paragraph(l)
+                p = doc.add_paragraph()
+                title, url = parse_md_link(l)
+                if url:
+                    add_hyperlink(p, title, url)
+                else:
+                    p.add_run(title)
             # Insert Common topics / Unexplored depths after books
             topics_blocks = _build_topics_blocks(guest, guest_dir)
             if topics_blocks:
@@ -970,11 +1059,11 @@ def generate_final_report_docx(guest: str, outputs_root: Path) -> Path:
                 if ct:
                     doc.add_heading("Common topics / stories", level=2)
                     for it in ct[:10]:
-                        doc.add_paragraph(f"- {it}")
+                        add_bullet(it)
                 if ud:
                     doc.add_heading("Unexplored depths", level=2)
                     for it in ud[:10]:
-                        doc.add_paragraph(f"- {it}")
+                        add_bullet(it)
             # Insert Podcast appearances
             appearances = _build_podcast_appearances(guest, guest_dir)
             if appearances:
@@ -983,15 +1072,21 @@ def generate_final_report_docx(guest: str, outputs_root: Path) -> Path:
                     title = a.get("title") or "Appearance"
                     url = a.get("url") or ""
                     ctx = a.get("context") or ""
-                    doc.add_paragraph(f"- {title}")
+                    add_bullet(title)
                     if url:
-                        doc.add_paragraph(f"  - {url}")
+                        p = doc.add_paragraph("    ")
+                        add_hyperlink(p, url, url)
                     if ctx:
                         doc.add_paragraph(f"  - {ctx}")
         if link_sections.get("social"):
             doc.add_heading("Social", level=2)
             for l in link_sections["social"]:
-                doc.add_paragraph(l)
+                p = doc.add_paragraph()
+                title, url = parse_md_link(l)
+                if url:
+                    add_hyperlink(p, title, url)
+                else:
+                    p.add_run(title)
 
     if stats:
         doc.add_heading("Data gathering summary", level=1)
@@ -1050,7 +1145,12 @@ def generate_final_report_docx(guest: str, outputs_root: Path) -> Path:
                 if why:
                     doc.add_paragraph(why)
                 for c in t.get("citations", [])[:5]:
-                    doc.add_paragraph(c)
+                    p = doc.add_paragraph()
+                    title, url = parse_md_link(c)
+                    if url:
+                        add_hyperlink(p, title, url)
+                    else:
+                        p.add_run(title)
         # Prefer themed questions if present
         q_by_theme = plan_obj.get("questions_by_theme", [])
         if q_by_theme:
@@ -1064,11 +1164,16 @@ def generate_final_report_docx(guest: str, outputs_root: Path) -> Path:
                     doc.add_paragraph(sub)
                 qs = (t.get("questions") or [])
                 display_qs = qs[:7] if len(qs) >= 7 else qs[:6] if len(qs) >= 6 else qs[:len(qs)]
-                for q in display_qs:
+                for idx, q in enumerate(display_qs, start=1):
                     text = q.get("q") or "Question"
-                    doc.add_paragraph(f"- {text}")
+                    add_numbered(text)
                     for c in q.get("citations", [])[:3]:
-                        doc.add_paragraph(f"  - {c}")
+                        p = doc.add_paragraph("    ")
+                        title, url = parse_md_link(c)
+                        if url:
+                            add_hyperlink(p, title, url)
+                        else:
+                            p.add_run(title)
         else:
             questions = plan_obj.get("questions", [])
             if questions:
@@ -1107,11 +1212,16 @@ def generate_final_report_docx(guest: str, outputs_root: Path) -> Path:
                 det = it.get("detail") or ""
                 conf = it.get("confidence") or ""
                 badge = f" (confidence: {conf})" if conf else ""
-                doc.add_paragraph(f"- {head}{badge}")
+                add_bullet(f"{head}{badge}")
                 if det:
                     doc.add_paragraph(f"  - {det}")
                 for c in (it.get("citations") or [])[:3]:
-                    doc.add_paragraph(f"  - {c}")
+                    p = doc.add_paragraph("    ")
+                    title, url = parse_md_link(c)
+                    if url:
+                        add_hyperlink(p, title, url)
+                    else:
+                        p.add_run(title)
         # Experiments
         experiments = plan_obj.get("experiments")
         if experiments:
@@ -1121,7 +1231,7 @@ def generate_final_report_docx(guest: str, outputs_root: Path) -> Path:
                 fmt = ex.get("format") or ""
                 why = ex.get("why") or ""
                 desc = ex.get("description") or ""
-                doc.add_paragraph(f"- {title}")
+                add_bullet(title)
                 if fmt:
                     doc.add_paragraph(f"  - Format: {fmt}")
                 if why:
@@ -1136,11 +1246,12 @@ def generate_final_report_docx(guest: str, outputs_root: Path) -> Path:
                 title = it.get("title") or "Idea"
                 prompt = it.get("prompt") or ""
                 url = it.get("url") or ""
-                doc.add_paragraph(f"- {title}")
+                add_bullet(title)
                 if prompt:
                     doc.add_paragraph(f"  - {prompt}")
                 if url:
-                    doc.add_paragraph(f"  - {url}")
+                    p = doc.add_paragraph("    ")
+                    add_hyperlink(p, url, url)
     else:
         doc.add_paragraph("Not available. Run Agent 3 to generate the plan.")
 
