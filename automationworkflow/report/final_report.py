@@ -1029,26 +1029,26 @@ def generate_final_report_docx(guest: str, outputs_root: Path) -> Path:
                 if tl.get("early_life_background"):
                     doc.add_heading("Early life & background", level=3)
                     for b in tl.get("early_life_background", [])[:10]:
-                        doc.add_paragraph(f"- {b}")
+                        add_bullet(b)
                 if tl.get("turning_points"):
                     doc.add_heading("Turning points / key decisions", level=3)
                     for b in tl.get("turning_points", [])[:10]:
-                        doc.add_paragraph(f"- {b}")
+                        add_bullet(b)
                 if tl.get("breakthrough_recognition"):
                     doc.add_heading("Breakthrough / recognition", level=3)
                     for b in tl.get("breakthrough_recognition", [])[:10]:
-                        doc.add_paragraph(f"- {b}")
+                        add_bullet(b)
                 if tl.get("recent_shifts_focus"):
                     doc.add_heading("Recent shifts / current focus", level=3)
                     for b in tl.get("recent_shifts_focus", [])[:10]:
-                        doc.add_paragraph(f"- {b}")
+                        add_bullet(b)
             lci = about_sections.get("life_changing_insights") or []
             if lci:
                 doc.add_heading("Life‑changing moments / key insights", level=2)
                 for it in lci[:6]:
                     title = it.get("title") or "Insight"
                     detail = it.get("detail") or ""
-                    doc.add_paragraph(f"- {title}")
+                    add_bullet(title)
                     if detail:
                         doc.add_paragraph(f"  - {detail}")
         if about_sources:
@@ -1057,7 +1057,10 @@ def generate_final_report_docx(guest: str, outputs_root: Path) -> Path:
                 url = s.get("url")
                 title = s.get("title") or url
                 if url:
-                    doc.add_paragraph(f"{title}: {url}")
+                    p = doc.add_paragraph()
+                    add_hyperlink(p, title, url)
+                else:
+                    doc.add_paragraph(title)
 
     if any(link_sections.values()):
         doc.add_heading("Key links", level=1)
@@ -1119,7 +1122,7 @@ def generate_final_report_docx(guest: str, outputs_root: Path) -> Path:
     if stats:
         doc.add_heading("Data gathering summary", level=1)
         for s in stats:
-            doc.add_paragraph(s)
+            add_bullet(s)
 
     # Communication assessment
     comm = _build_communication_assessment(guest, guest_dir)
@@ -1149,7 +1152,7 @@ def generate_final_report_docx(guest: str, outputs_root: Path) -> Path:
             if why:
                 doc.add_paragraph(why)
             for ev in (item.get("supporting_evidence") or [])[:5]:
-                doc.add_paragraph(ev)
+                add_bullet(ev)
     else:
         doc.add_paragraph("Not available. Run Agent 2 to generate insights.")
 
@@ -1208,9 +1211,14 @@ def generate_final_report_docx(guest: str, outputs_root: Path) -> Path:
                 doc.add_heading("Questions", level=2)
                 for i, q in enumerate(questions[:25], start=1):
                     text = q.get("q") or f"Question {i}"
-                    doc.add_paragraph(f"{i}. {text}")
+                    add_numbered(text)
                     for c in q.get("citations", [])[:3]:
-                        doc.add_paragraph(f"  - {c}")
+                        p = doc.add_paragraph("    ")
+                        title, url = parse_md_link(c)
+                        if url:
+                            add_hyperlink(p, title, url)
+                        else:
+                            p.add_run(title)
             # Subsection from comment analysis
             comment_analysis = _read_json(guest_dir / "agent3" / "comment_analysis.json")
             if comment_analysis:
@@ -1228,9 +1236,14 @@ def generate_final_report_docx(guest: str, outputs_root: Path) -> Path:
             for t in (audience.get("themes") or [])[:8]:
                 theme = t.get("theme") or "Theme"
                 why = t.get("why") or ""
-                doc.add_paragraph(f"- {theme}: {why}")
+                add_bullet(f"{theme}: {why}")
                 for c in t.get("citations", [])[:3]:
-                    doc.add_paragraph(f"  - {c}")
+                    p = doc.add_paragraph("    ")
+                    title, url = parse_md_link(c)
+                    if url:
+                        add_hyperlink(p, title, url)
+                    else:
+                        p.add_run(title)
         # Insights & data
         insights = plan_obj.get("insights_data")
         if insights:
