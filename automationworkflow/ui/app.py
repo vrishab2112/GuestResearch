@@ -61,6 +61,9 @@ if openai_key:
     os.environ["OPENAI_API_KEY"] = openai_key
 if tavily_key:
     os.environ["TAVILY_API_KEY"] = tavily_key
+if yt_key:
+    # Ensure Agent 1 (which reads env var) sees the per-session YouTube key
+    os.environ["YOUTUBE_API_KEY"] = yt_key
 
 api_key = yt_key or os.getenv("YOUTUBE_API_KEY")
 yt = YouTubeIngestor(api_key=api_key)
@@ -167,7 +170,7 @@ elif run_agent3:
         # Prefer selected North Star if present
         north_star_path = guest_dir / "agent2" / "selected_north_star.json"
         if not north_star_path.exists():
-            north_star_path = guest_dir / "agent2" / "north_star.json"
+        north_star_path = guest_dir / "agent2" / "north_star.json"
         north_star = json.loads(north_star_path.read_text(encoding="utf-8")) if north_star_path.exists() else {"north_star": [], "lesser_known": []}
         data = load_agent1_outputs(guest_dir)
         snippets = build_snippets(data)
