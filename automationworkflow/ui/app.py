@@ -15,6 +15,7 @@ from ingestion.web import WebIngestor
 from utils.normalize import ChunkNormalizer
 from utils.io import write_jsonl, ensure_dir
 from run_agent1 import run_agent1
+# keep the imported agent2 main under a distinct name so it doesn't collide with the button variable
 from run_agent2 import main as run_agent2_cli
 from report.final_report import generate_final_report, generate_final_report_docx
 
@@ -125,8 +126,10 @@ if ns_path.exists():
         if ns_selected_path.exists():
             st.info(f"Current selection in use: `{ns_selected_path.name}`. Agent 3, Final Report and Chatbot will prefer this.")
     except Exception as _e:
-        pass
+        # if something goes wrong loading north star, fail silently — user can re-run Agent 2
+        st.warning("Unable to load north_star.json (it may be malformed).")
 
+# ---- Main action handlers ----
 if run_button:
     status.info("Running pipeline… This may take a minute.")
     try:
@@ -146,6 +149,7 @@ if run_button:
             st.write("You can now run Agent 2 to generate insights.")
     except Exception as e:
         status.error(f"Failed: {e}")
+
 elif run_agent2:
     # Call Agent 2 programmatically
     try:
@@ -161,6 +165,7 @@ elif run_agent2:
         st.write(f"Saved to `{guest_dir / 'agent2' / 'north_star.json'}`")
     except Exception as e:
         st.error(f"Agent 2 failed: {e}")
+
 elif run_agent3:
     try:
         from agent2.loader import load_agent1_outputs, build_snippets
@@ -170,7 +175,7 @@ elif run_agent3:
         # Prefer selected North Star if present
         north_star_path = guest_dir / "agent2" / "selected_north_star.json"
         if not north_star_path.exists():
-        north_star_path = guest_dir / "agent2" / "north_star.json"
+            north_star_path = guest_dir / "agent2" / "north_star.json"
         north_star = json.loads(north_star_path.read_text(encoding="utf-8")) if north_star_path.exists() else {"north_star": [], "lesser_known": []}
         data = load_agent1_outputs(guest_dir)
         snippets = build_snippets(data)
@@ -185,6 +190,7 @@ elif run_agent3:
         st.write(f"Saved to `{guest_dir / 'agent3' / 'plan.json'}`")
     except Exception as e:
         st.error(f"Agent 3 failed: {e}")
+
 elif analyze_comments_btn:
     try:
         from analysis.comments import analyze_comments
@@ -201,11 +207,13 @@ elif analyze_comments_btn:
         st.write(f"Saved to `{guest_dir / 'agent3' / 'comment_analysis.json'}`")
     except Exception as e:
         st.error(f"Comment analysis failed: {e}")
-elif 'generate_report' in locals() and generate_report:
+
+elif generate_report:
     try:
         if fmt.startswith("Markdown"):
             report_path = generate_final_report(guest, outputs_root)
         else:
+            # attempt Word; helper will fallback if python-docx isn't available
             report_path = generate_final_report_docx(guest, outputs_root)
 
         # Derive download parameters from actual file suffix to avoid corrupted downloads
@@ -228,7 +236,8 @@ elif 'generate_report' in locals() and generate_report:
         st.download_button(label=label, data=report_path.read_bytes(), file_name=fname, mime=mime)
     except Exception as e:
         st.error(f"Final report failed: {e}")
-elif 'ask' in locals() and ask and user_question.strip():
+
+elif ask and user_question.strip():
     try:
         from chatbot.answer import answer_question
         outputs_root = PROJECT_ROOT / "outputs"
