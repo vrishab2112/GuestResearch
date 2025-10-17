@@ -987,7 +987,35 @@ def generate_final_report_docx(guest: str, outputs_root: Path) -> Path:
             except Exception:
                 return item, None
         return item, None
+
+    def add_toc():
+        try:
+            p = doc.add_paragraph()
+            fld = OxmlElement('w:fldSimple')
+            fld.set(qn('w:instr'), 'TOC \\o "1-3" \\h \\z \\u')
+            p._p.append(fld)
+        except Exception:
+            pass
+
+    def add_header_footer():
+        try:
+            section = doc.sections[0]
+            header_p = section.header.paragraphs[0] if section.header.paragraphs else section.header.add_paragraph()
+            header_p.text = f"Final Report — {guest}"
+            footer_p = section.footer.paragraphs[0] if section.footer.paragraphs else section.footer.add_paragraph()
+            footer_p.text = "Page "
+            fld = OxmlElement('w:fldSimple')
+            fld.set(qn('w:instr'), 'PAGE')
+            footer_p._p.append(fld)
+        except Exception:
+            pass
+
+    # Header/footer and TOC
+    add_header_footer()
     doc.add_heading(f"Final Interview Research Report — {guest}", 0)
+    # Insert Table of Contents right after title
+    add_toc()
+    doc.add_page_break()
 
     if about_text:
         doc.add_heading("About the guest", level=1)
@@ -1134,7 +1162,7 @@ def generate_final_report_docx(guest: str, outputs_root: Path) -> Path:
                 sec = section.get("section") or "Section"
                 doc.add_paragraph(sec)
                 for b in section.get("bullets", [])[:10]:
-                    doc.add_paragraph(f"- {b}")
+                    add_bullet(b)
         topics = plan_obj.get("topics", [])
         if topics:
             doc.add_heading("Discussion topics", level=2)
