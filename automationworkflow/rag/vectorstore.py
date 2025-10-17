@@ -65,3 +65,4 @@ def query(db_dir: Path, query_text: str, n_results: int = 6, collection_name: st
 
 
 
+

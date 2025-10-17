@@ -862,11 +862,39 @@ def generate_final_report(guest: str, outputs_root: Path) -> Path:
 
 
 def generate_final_report_docx(guest: str, outputs_root: Path) -> Path:
+    # Helper: try Pandoc conversion from Markdown if python-docx is unavailable or save fails
+    def _pandoc_fallback() -> Path:
+        try:
+            import pypandoc  # type: ignore
+        except Exception:
+            return generate_final_report(guest, outputs_root)
+        # Build markdown then convert to docx
+        guest_dir_local = outputs_root / guest
+        guest_dir_local.mkdir(parents=True, exist_ok=True)
+        md_content = build_markdown_report(guest, guest_dir_local)
+        md_path = guest_dir_local / "final_report.md"
+        md_path.write_text(md_content, encoding="utf-8")
+        out_path_local = guest_dir_local / "final_report.docx"
+        try:
+            try:
+                # Try conversion directly
+                pypandoc.convert_text(md_content, to="docx", format="md", outputfile=str(out_path_local))
+            except OSError:
+                # Attempt to auto-download pandoc if missing
+                try:
+                    pypandoc.download_pandoc()
+                except Exception:
+                    pass
+                pypandoc.convert_text(md_content, to="docx", format="md", outputfile=str(out_path_local))
+            return out_path_local if out_path_local.exists() else md_path
+        except Exception:
+            return md_path
+
     try:
         from docx import Document
     except Exception:
-        # Fallback: still generate markdown if python-docx is missing
-        return generate_final_report(guest, outputs_root)
+        # Try Pandoc fallback; if that fails, return Markdown
+        return _pandoc_fallback()
 
     guest_dir = outputs_root / guest
     guest_dir.mkdir(parents=True, exist_ok=True)
@@ -1168,7 +1196,8 @@ def generate_final_report_docx(guest: str, outputs_root: Path) -> Path:
         doc.save(str(out_path))
         return out_path
     except Exception:
-        # Fallback to Markdown if Word save fails
-        return generate_final_report(guest, outputs_root)
+        # Try Pandoc as a secondary fallback; then Markdown as last resort
+        alt = _pandoc_fallback()
+        return alt
 
 

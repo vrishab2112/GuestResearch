@@ -74,14 +74,15 @@ def analyze_comments(guest_dir: Path, model: str = "gpt-4o", max_comments: int =
         "  \"overall_sentiment\": {summary, positive_pct, neutral_pct, negative_pct},\n"
         "  \"hot_topics\": [{topic, why, example_quote}],\n"
         "  \"controversies\": [{issue, sides, example_quote}],\n"
-        "  \"open_questions\": [string],\n"
+        "  \"open_questions\": [string]  // 7-10 specific, non-duplicative viewer questions,\n"
         "  \"top_comments\": [{likes, quote}],\n"
         "  \"stats\": {total_comments, sample_size}\n"
         "}"
     )
     user = (
         "Top comments JSON (trimmed):\n" + context_json + "\n\n"
-        "Summarize themes (culture/politics/tech), capture controversies fairly, and list real open questions from viewers."
+        "Summarize themes (culture/politics/tech), capture controversies fairly, and list real open questions from viewers. "
+        "Provide 7-10 concise, distinct open questions that the audience still wants answered."
     )
     messages = [{"role": "system", "content": system}, {"role": "user", "content": user}]
     result = _call_openai_json(messages, model=model)
