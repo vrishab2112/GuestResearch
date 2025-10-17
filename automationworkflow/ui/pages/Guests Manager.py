@@ -6,7 +6,9 @@ from pathlib import Path
 import streamlit as st
 
 # Ensure project root is on sys.path so imports work when running via Streamlit
-PROJECT_ROOT = Path(__file__).resolve().parents[1]
+# Use the project root (same level as in main app.py)
+# __file__ is automationworkflow/ui/pages/Guests Manager.py → go up two levels to automationworkflow
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
